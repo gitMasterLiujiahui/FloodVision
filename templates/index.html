@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>积水识别和车辆淹没部位判别系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --accent-color: #e74c3c;
+            --success-color: #27ae60;
+            --warning-color: #f39c12;
+            --light-bg: #ecf0f1;
+            --dark-bg: #2c3e50;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 16px;
+            line-height: 1.6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease-out;
+        }
+        
+        .loading-content {
+            text-align: center;
+            color: white;
+        }
+        
+        .loading-logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: pulse 2s infinite;
+        }
+        
+        .loading-title {
+            font-size: 2.2rem;
+            font-weight: 400;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+        
+        .loading-subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-bottom: 2rem;
+            line-height: 1.4;
+        }
+        
+        .loading-progress {
+            width: 300px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        
+        .loading-progress-bar {
+            height: 100%;
+            background: white;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+        
+        .loading-status {
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .main-container {
+            display: none;
+            width: 100%;
+            max-width: 1200px;
+            min-height: 100vh;
+            padding: 20px;
+            margin: 0 auto;
+        }
+        
+        .app-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        .app-header {
+            background: var(--primary-color);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .app-title {
+            font-size: 2.2rem;
+            font-weight: 400;
+            margin: 0;
+            line-height: 1.2;
+        }
+        
+        .app-subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin: 0.5rem 0 0 0;
+            line-height: 1.4;
+        }
+        
+        .content-section {
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .model-controls {
+            background: var(--light-bg);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .image-upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 10px;
+            padding: 2.5rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .image-upload-area:hover {
+            border-color: var(--secondary-color);
+            background: rgba(52, 152, 219, 0.05);
+        }
+        
+        .image-upload-area.dragover {
+            border-color: var(--secondary-color);
+            background: rgba(52, 152, 219, 0.1);
+        }
+        
+        .result-container {
+            display: none;
+        }
+
+        .split-view {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+            justify-content: center;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .split-panel {
+            background: #fff;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        
+        .result-image {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            margin: 0 auto;
+            display: block;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        
+        .status-online {
+            background: var(--success-color);
+        }
+        
+        .status-offline {
+            background: var(--warning-color);
+        }
+        
+        .btn-primary {
+            background: var(--secondary-color);
+            border: none;
+            padding: 0.8rem 2rem;
+            border-radius: 25px;
+            font-weight: 500;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            margin: 0 auto;
+            display: block;
+            max-width: 200px;
+        }
+        
+        .btn-primary:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .feature-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            text-align: center;
+            max-width: 300px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+        
+        .feature-icon {
+            font-size: 2rem;
+            color: var(--secondary-color);
+            margin-bottom: 1rem;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- 加载界面 -->
+    <div id="loadingScreen" class="loading-screen">
+        <div class="loading-content">
+            <div class="loading-logo">
+                <i class="fas fa-water"></i>
+            </div>
+            <h1 class="loading-title">积水识别系统</h1>
+            <p class="loading-subtitle">车辆淹没部位判别系统 - Web版本</p>
+            <div class="loading-progress">
+                <div id="progressBar" class="loading-progress-bar"></div>
+            </div>
+            <div id="loadingStatus" class="loading-status">正在初始化系统...</div>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+    <div id="mainContainer" class="main-container">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-10">
+                    <div class="app-card">
+                        <!-- 头部 -->
+                        <div class="app-header">
+                            <h1 class="app-title">
+                                <i class="fas fa-water me-3"></i>
+                                积水识别系统
+                            </h1>
+                            <p class="app-subtitle">车辆淹没部位判别系统 - Web版本</p>
+                            <div class="mt-3">
+                                <span class="status-indicator status-online"></span>
+                                <small>系统状态: <span id="systemStatus">运行中</span></small>
+                            </div>
+                        </div>
+
+                        <!-- 内容区域 -->
+                        <div class="content-section">
+                            <!-- 模型控制 -->
+                            <div class="model-controls">
+                                <h4><i class="fas fa-cogs me-2"></i>模型配置</h4>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label class="form-label">检测模型</label>
+                                        <select id="detectionModel" class="form-select">
+                                            <option value="无">无</option>
+                                            <option value="SSD300">SSD300</option>
+                                            <option value="YOLOv11">YOLOv11</option>
+                                        </select>
+                                        <div class="mt-2">
+                                            <small id="detectionStatus" class="text-muted">未加载</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">分割模型</label>
+                                        <select id="segmentationModel" class="form-select">
+                                            <option value="无">无</option>
+                                            <option value="DeepLabV3">DeepLabV3</option>
+                                            <option value="YOLOv11">YOLOv11</option>
+                                        </select>
+                                        <div class="mt-2">
+                                            <small id="segmentationStatus" class="text-muted">未加载</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-3">
+                                    <button id="loadModelsBtn" class="btn btn-primary">
+                                        <i class="fas fa-download me-2"></i>加载模型
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 图像上传 -->
+                            <div id="imageUploadArea" class="image-upload-area">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
+                                <h5>点击或拖拽图像文件到此处</h5>
+                                <p class="text-muted">支持 JPG, PNG, BMP 格式</p>
+                                <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                            </div>
+
+                            <!-- 处理按钮 -->
+                            <div class="text-center mb-4">
+                                <button id="processBtn" class="btn btn-primary btn-lg" disabled>
+                                    <i class="fas fa-play me-2"></i>开始处理
+                                </button>
+                            </div>
+
+                            <!-- 结果展示 -->
+                            <div id="resultContainer" class="result-container">
+                                <h4><i class="fas fa-chart-bar me-2"></i>处理结果</h4>
+                                <div class="split-view mb-3">
+                                    <div class="split-panel">
+                                        <div class="panel-title">左：检测结果</div>
+                                        <img id="detectionImage" class="result-image" alt="检测结果">
+                                        <div class="mt-2">
+                                            <button id="downloadDetectionBtn" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-download me-1"></i>下载检测图
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="split-panel">
+                                        <div class="panel-title">右：分割结果</div>
+                                        <img id="segImage" class="result-image" alt="分割结果">
+                                        <div class="mt-2">
+                                            <button id="downloadSegBtn" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-download me-1"></i>下载分割图
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="feature-card">
+                                    <div class="feature-icon">
+                                        <i class="fas fa-list-ol"></i>
+                                    </div>
+                                    <h6>不同淹没部位车辆数量统计</h6>
+                                    <div id="statsContainer" class="small text-muted"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 加载进度模拟
+        let progress = 0;
+        const progressBar = document.getElementById('progressBar');
+        const loadingStatus = document.getElementById('loadingStatus');
+        
+        function updateProgress(step, message) {
+            progress += step;
+            progressBar.style.width = progress + '%';
+            loadingStatus.textContent = message;
+        }
+        
+        // 模拟加载过程
+        setTimeout(() => updateProgress(20, '正在检查系统环境...'), 500);
+        setTimeout(() => updateProgress(30, '正在连接后端服务...'), 1500);
+        setTimeout(() => updateProgress(25, '正在初始化界面组件...'), 2500);
+        setTimeout(() => updateProgress(25, '准备就绪...'), 3500);
+        
+        // 加载完成后显示主界面
+        setTimeout(() => {
+            document.getElementById('loadingScreen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('mainContainer').style.display = 'block';
+                
+                // 初始化应用
+                initializeApp();
+            }, 500);
+        }, 4500);
+        
+        // 应用初始化
+        function initializeApp() {
+            // 检查后端状态
+            checkBackendStatus();
+            
+            // 设置事件监听器
+            setupEventListeners();
+            
+            // 获取可用模型
+            getAvailableModels();
+        }
+        
+        // 检查后端状态
+        async function checkBackendStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                document.getElementById('systemStatus').textContent = data.status;
+            } catch (error) {
+                console.error('后端连接失败:', error);
+                document.getElementById('systemStatus').textContent = '连接失败';
+            }
+        }
+        
+        // 获取可用模型（适配FastAPI /api/models）
+        async function getAvailableModels() {
+            try {
+                const resp = await fetch('/api/models');
+                const data = await resp.json();
+
+                const detectionSelect = document.getElementById('detectionModel');
+                const segmentationSelect = document.getElementById('segmentationModel');
+
+                const keepNone = (select) => {
+                    const noneOpt = select.querySelector('option[value="无"]');
+                    select.innerHTML = '';
+                    select.appendChild(noneOpt);
+                };
+
+                keepNone(detectionSelect);
+                keepNone(segmentationSelect);
+
+                (data.detection_models || []).forEach(m => {
+                    if (m.available) {
+                        const opt = document.createElement('option');
+                        opt.value = m.name;
+                        opt.textContent = m.name;
+                        detectionSelect.appendChild(opt);
+                    }
+                });
+
+                (data.segmentation_models || []).forEach(m => {
+                    if (m.available) {
+                        const opt = document.createElement('option');
+                        opt.value = m.name.replace('-Seg', '').replace('YOLOv11-Seg', 'YOLOv11');
+                        opt.textContent = m.name;
+                        segmentationSelect.appendChild(opt);
+                    }
+                });
+            } catch (e) {
+                console.error('获取模型列表失败:', e);
+            }
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 工具：获取或创建隐藏文件输入
+            function getOrCreateFileInput() {
+                let input = document.getElementById('imageInput');
+                if (!input) {
+                    input = document.createElement('input');
+                    input.type = 'file';
+                    input.id = 'imageInput';
+                    input.accept = 'image/*';
+                    input.style.display = 'none';
+                    document.body.appendChild(input);
+                    input.addEventListener('change', handleFileSelect);
+                }
+                return input;
+            }
+
+            // 图像上传区域点击事件
+            document.getElementById('imageUploadArea').addEventListener('click', () => {
+                const input = getOrCreateFileInput();
+                input.click();
+            });
+            
+            // 文件选择事件（如果初始存在则绑定，若被替换将由 getOrCreateFileInput 重新绑定）
+            const initialInput = document.getElementById('imageInput');
+            if (initialInput) {
+                initialInput.addEventListener('change', handleFileSelect);
+            }
+            
+            // 拖拽事件
+            const uploadArea = document.getElementById('imageUploadArea');
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                handleFileDrop(e.dataTransfer.files);
+            });
+            
+            // 加载模型按钮
+            document.getElementById('loadModelsBtn').addEventListener('click', loadModels);
+            
+            // 处理按钮
+            document.getElementById('processBtn').addEventListener('click', processImage);
+        }
+        
+        // 处理文件选择
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                displaySelectedFile(file);
+            }
+        }
+        
+        // 处理文件拖拽
+        function handleFileDrop(files) {
+            const file = files[0];
+            if (file && file.type.startsWith('image/')) {
+                displaySelectedFile(file);
+            }
+        }
+        
+        let selectedFile = null; // 保存当前选择文件
+
+        // 显示选中的文件
+        function displaySelectedFile(file) {
+            const uploadArea = document.getElementById('imageUploadArea');
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                uploadArea.innerHTML = `
+                    <img src="${e.target.result}" style="max-width: 200px; max-height: 200px; border-radius: 5px;">
+                    <p class="mt-2">${file.name}</p>
+                    <small class="text-muted">点击重新选择</small>
+                `;
+                
+                // 启用处理按钮
+                document.getElementById('processBtn').disabled = false;
+                
+                // 存储文件引用
+                uploadArea.dataset.file = file;
+                selectedFile = file;
+            };
+            
+            reader.readAsDataURL(file);
+        }
+        
+        // 加载模型
+        async function loadModels() {
+            const detectionModel = document.getElementById('detectionModel').value;
+            const segmentationModel = document.getElementById('segmentationModel').value;
+            
+            if (detectionModel === '无' && segmentationModel === '无') {
+                alert('请至少选择一个模型');
+                return;
+            }
+            
+            try {
+                const form = new FormData();
+                form.append('detection', detectionModel);
+                form.append('segmentation', segmentationModel);
+                const response = await fetch('/api/models/load', { method: 'POST', body: form });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('detectionStatus').textContent = '已加载: ' + (data.detection_model || '未加载');
+                    document.getElementById('segmentationStatus').textContent = '已加载: ' + (data.segmentation_model || '未加载');
+                    
+                    alert('模型加载成功！');
+                } else {
+                    alert('模型加载失败: ' + data.error);
+                }
+                
+            } catch (error) {
+                console.error('模型加载错误:', error);
+                alert('模型加载失败，请检查后端服务');
+            }
+        }
+        
+        // 渲染统计信息
+        function renderStats(stats) {
+            const el = document.getElementById('statsContainer');
+            if (!stats) { el.innerHTML = '<p class="text-muted">无统计数据</p>'; return; }
+            const rows = [];
+            rows.push(`总车辆: ${stats.total_vehicles}`);
+            const by = stats.by_class || {};
+            ['wheel','door','window'].forEach(k => {
+                if (by[k]) rows.push(`${k}: 总数 ${by[k].total}`);
+            });
+            el.innerHTML = rows.map(r => `<div>${r}</div>`).join('');
+        }
+
+        // 处理图像
+        async function processImage() {
+            const uploadArea = document.getElementById('imageUploadArea');
+            const file = selectedFile || uploadArea.dataset.file;
+            
+            if (!file) {
+                alert('请先选择图像文件');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            try {
+                const response = await fetch('/api/process', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // 显示左右分屏结果
+                    document.getElementById('detectionImage').src = data.detection_image;
+                    document.getElementById('segImage').src = data.segmentation_image;
+                    
+                    // 渲染统计
+                    renderStats(data.results?.statistics);
+                    
+                    // 显示结果容器
+                    document.getElementById('resultContainer').style.display = 'block';
+                    
+                } else {
+                    alert('图像处理失败: ' + data.error);
+                }
+                
+            } catch (error) {
+                console.error('图像处理错误:', error);
+                alert('图像处理失败，请检查后端服务');
+            }
+        }
+
+        // 下载按钮（检测/分割结果）
+        document.addEventListener('click', async (e) => {
+            if (e.target && e.target.id === 'downloadDetectionBtn') {
+                if (!selectedFile) { alert('请先选择并处理图像'); return; }
+                const form = new FormData();
+                form.append('image', selectedFile);
+                try {
+                    const resp = await fetch('/api/download/detection', { method: 'POST', body: form });
+                    if (!resp.ok) { alert('下载失败'); return; }
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = 'detection_result.jpg';
+                    document.body.appendChild(a); 
+                    if (a && typeof a.click === 'function') {
+                        a.click(); 
+                    }
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                } catch (error) {
+                    console.error('下载检测结果失败:', error);
+                    alert('下载失败，请重试');
+                }
+            }
+            if (e.target && e.target.id === 'downloadSegBtn') {
+                if (!selectedFile) { alert('请先选择并处理图像'); return; }
+                const form = new FormData();
+                form.append('image', selectedFile);
+                try {
+                    const resp = await fetch('/api/download/segmentation', { method: 'POST', body: form });
+                    if (!resp.ok) { alert('下载失败'); return; }
+                    const blob = await resp.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = 'segmentation_result.jpg';
+                    document.body.appendChild(a); 
+                    if (a && typeof a.click === 'function') {
+                        a.click(); 
+                    }
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                } catch (error) {
+                    console.error('下载分割结果失败:', error);
+                    alert('下载失败，请重试');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
